@@ -110,6 +110,66 @@ def test_preflight_succeeds_for_valid_project_root(monkeypatch, tmp_path, capsys
     assert str(project_root.resolve()) in captured.out
 
 
+def test_wordcount_forwards_with_resolved_project_root(monkeypatch, tmp_path):
+    module = _load_webnovel_module()
+
+    book_root = (tmp_path / "book").resolve()
+    called = {}
+
+    def _fake_resolve(explicit_project_root=None):
+        return book_root
+
+    def _fake_run_script(script_name, argv):
+        called["script_name"] = script_name
+        called["argv"] = list(argv)
+        return 0
+
+    monkeypatch.setattr(module, "_resolve_root", _fake_resolve)
+    monkeypatch.setattr(module, "_run_script", _fake_run_script)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "webnovel",
+            "--project-root",
+            str(tmp_path),
+            "wordcount",
+            "--chapter",
+            "12",
+            "--min-words",
+            "3200",
+            "--project-root",
+            "ignored",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        module.main()
+
+    assert int(exc.value.code or 0) == 0
+    assert called["script_name"] == "check_chapter_wordcount.py"
+    assert called["argv"] == [
+        "--project-root",
+        str(book_root),
+        "--chapter",
+        "12",
+        "--min-words",
+        "3200",
+    ]
+
+
+def test_wordcount_requires_exactly_one_target(monkeypatch, tmp_path):
+    module = _load_webnovel_module()
+
+    monkeypatch.setattr(module, "_resolve_root", lambda explicit_project_root=None: (tmp_path / "book").resolve())
+    monkeypatch.setattr(sys, "argv", ["webnovel", "--project-root", str(tmp_path), "wordcount"])
+
+    with pytest.raises(SystemExit) as exc:
+        module.main()
+
+    assert int(exc.value.code or 0) == 2
+
+
 def test_preflight_fails_when_required_scripts_are_missing(monkeypatch, tmp_path, capsys):
     module = _load_webnovel_module()
 

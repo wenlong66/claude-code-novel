@@ -233,6 +233,14 @@ def main() -> None:
     p_status = sub.add_parser("status", help="转发到 status_reporter.py")
     p_status.add_argument("args", nargs=argparse.REMAINDER)
 
+    p_wordcount = sub.add_parser("wordcount", help="转发到 check_chapter_wordcount.py")
+    p_wordcount.add_argument("--chapter", type=int, help="按章节号检查单章")
+    p_wordcount.add_argument("--all", action="store_true", help="检查全部章节")
+    p_wordcount.add_argument("--min-words", type=int, help="最低字数要求")
+    p_wordcount.add_argument("--pattern", help="批量扫描时使用的文件模式")
+    p_wordcount.add_argument("--format", choices=["text", "json"], help="输出格式")
+    p_wordcount.add_argument("args", nargs=argparse.REMAINDER)
+
     p_update_state = sub.add_parser("update-state", help="转发到 update_state.py")
     p_update_state.add_argument("args", nargs=argparse.REMAINDER)
 
@@ -303,6 +311,22 @@ def main() -> None:
     if tool == "extract-context":
         return_args = [*forward_args, "--chapter", str(args.chapter), "--format", str(args.format)]
         raise SystemExit(_run_script("extract_chapter_context.py", return_args))
+    if tool == "wordcount":
+        if (args.chapter is None) == (not bool(args.all)):
+            parser.error("wordcount 需要且只能提供 --chapter 或 --all 其中之一")
+        return_args = [*forward_args]
+        if args.chapter is not None:
+            return_args.extend(["--chapter", str(args.chapter)])
+        if bool(args.all):
+            return_args.append("--all")
+        if args.min_words is not None:
+            return_args.extend(["--min-words", str(args.min_words)])
+        if args.pattern is not None:
+            return_args.extend(["--pattern", str(args.pattern)])
+        if args.format is not None:
+            return_args.extend(["--format", str(args.format)])
+        return_args.extend(rest)
+        raise SystemExit(_run_script("check_chapter_wordcount.py", return_args))
 
     raise SystemExit(2)
 

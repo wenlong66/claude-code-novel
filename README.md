@@ -1,13 +1,8 @@
-# Webnovel Writer
+# claude-code-novel
 
-[![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-purple.svg)](https://claude.ai/claude-code)
-
-<a href="https://trendshift.io/repositories/22487" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22487" alt="lingfengQAQ%2Fwebnovel-writer | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 ## 项目简单介绍
 
-`Webnovel Writer` 是基于 Claude Code 的长篇网文创作系统，目标是降低 AI 写作中的“遗忘”和“幻觉”，支持长周期连载创作。
+`claude-code-novel` 在 webnovel-writer的基础上做了一些扩展
 
 详细文档已拆分到 `docs/`：
 
@@ -20,19 +15,14 @@
 
 ## 快速开始
 
-### 1) 安装插件（官方 Marketplace）
-
-```bash
-claude plugin marketplace add lingfengQAQ/webnovel-writer --scope user
-claude plugin install webnovel-writer@webnovel-writer-marketplace --scope user
-```
-
+### 1) 安装插件
+改成了本地插件,直接导入项目目录即可
 > 仅当前项目生效时，将 `--scope user` 改为 `--scope project`。
 
 ### 2) 安装 Python 依赖
 
 ```bash
-python -m pip install -r https://raw.githubusercontent.com/lingfengQAQ/webnovel-writer/HEAD/requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 说明：该入口会同时安装核心写作链路与 Dashboard 依赖。
@@ -113,6 +103,12 @@ model: sonnet
 ```
 
 常见可选值：`inherit` / `sonnet` / `opus` / `haiku`（以 Claude Code 当前支持为准）。
+
+### 8) 新增
+
+```bash
+/novel-wordcount 1   # 字数检查命令
+```
 
 ## 更新简介
 

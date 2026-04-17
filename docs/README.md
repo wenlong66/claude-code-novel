@@ -14,7 +14,7 @@
 
 ## 命令详解
 
-- `commands.md`：`/webnovel-*` 命令详细说明
+- `commands.md`：`/webnovel-*` 与 `/novel-*` 命令详细说明
 
 ## RAG 与配置
 
