@@ -17,7 +17,8 @@
 | `/webnovel-write` | `webnovel-write` Skill | 写作流程 Step 5 数据链更新时 | Task 调 `data-agent`（内部再写 state/index） |
 | `/webnovel-query` | `webnovel-query` Skill | 查询“伏笔紧急度/Strand 节奏”等分析请求时 | `scripts/status_reporter.py --focus urgency/strand` |
 | `/webnovel-resume` | `webnovel-resume` Skill | 中断恢复检测、清理、断点恢复时 | `scripts/workflow_manager.py detect/cleanup/clear` |
-| `/novel-wordcount` | `commands/novel-wordcount.md` command | 用户显式执行 `/novel-wordcount` 时主动检查章节字数 | 通过统一 CLI `scripts/webnovel.py wordcount` 执行 |
+| `/webnovel-import` | `webnovel-import` Skill | 迁移已有小说章节并初始化可续写项目时 | 通过统一 CLI `scripts/webnovel.py import-novel` 执行 |
+| `/novel-wordcount` | `skills/novel-wordcount/SKILL.md`（显式 Skill） | 用户显式执行 `/novel-wordcount` 时主动检查章节字数 | 通过统一 CLI `scripts/webnovel.py wordcount` 执行 |
 
 ## 脚本级矩阵（脚本 -> 谁触发 -> 什么时候）
 
@@ -29,6 +30,7 @@
 | `${CLAUDE_PLUGIN_ROOT}/scripts/workflow_manager.py` | `webnovel-resume` Skill | 恢复流程 detect/cleanup/clear | 仅恢复场景触发 |
 | `${CLAUDE_PLUGIN_ROOT}/scripts/init_project.py` | `webnovel-init` Skill | 项目初始化阶段 | 负责项目脚手架与基础状态文件 |
 | `${CLAUDE_PLUGIN_ROOT}/scripts/check_chapter_wordcount.py` | `scripts/webnovel.py wordcount` 内部调用 | `wordcount` 子命令转发后执行 | 只读检查，支持单章/全量与 JSON 输出 |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/data_modules/novel_import_manager.py` | `webnovel-import` Skill / `scripts/webnovel.py import-novel` | 导入已有章节目录到标准项目结构时 | 写入 `正文/*` 并更新 `.webnovel/state.json` |
 
 ## 内部库调用（非独立命令）
 

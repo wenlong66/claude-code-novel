@@ -1,6 +1,9 @@
-# /novel-wordcount
-
-显式执行章节字数检查命令。
+---
+name: novel-wordcount
+description: 检查单章或全书章节的中文字数是否达标。适用于用户要求统计字数、检查章节字数，或执行 /novel-wordcount 时。
+allowed-tools: Bash Read AskUserQuestion
+disable-model-invocation: true
+---
 
 ## 用法
 
@@ -11,10 +14,9 @@
 
 ## 执行要求
 
-1. 这是一个**主动执行的 command**，被调用后直接完成字数检查，不要只解释命令本身。
-2. 先解析真实书项目根（必须包含 `.webnovel/state.json`）。
-3. 底层统一调用 `webnovel.py wordcount`，不要重复实现字数统计逻辑。
-4. 默认只读，不修改项目文件。
+1. 先解析真实书项目根（必须包含 `.webnovel/state.json`）。
+2. 底层统一调用 `webnovel.py wordcount`，不要重复实现字数统计逻辑。
+3. 默认只读，不修改项目文件。
 
 ## 参数处理
 

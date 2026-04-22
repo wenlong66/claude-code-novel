@@ -241,6 +241,9 @@ def main() -> None:
     p_wordcount.add_argument("--format", choices=["text", "json"], help="输出格式")
     p_wordcount.add_argument("args", nargs=argparse.REMAINDER)
 
+    p_refstyle = sub.add_parser("refstyle", help="转发到 reference_style_manager")
+    p_refstyle.add_argument("args", nargs=argparse.REMAINDER)
+
     p_update_state = sub.add_parser("update-state", help="转发到 update_state.py")
     p_update_state.add_argument("args", nargs=argparse.REMAINDER)
 
@@ -252,6 +255,21 @@ def main() -> None:
 
     p_init = sub.add_parser("init", help="转发到 init_project.py（初始化项目）")
     p_init.add_argument("args", nargs=argparse.REMAINDER)
+
+    p_import_novel = sub.add_parser("import-novel", help="转发到 novel_import_manager（导入已有小说）")
+    p_import_novel.add_argument("args", nargs=argparse.REMAINDER)
+    p_import_novel.add_argument("--source-dir", dest="import_source_dir")
+    p_import_novel.add_argument("--source", dest="import_source")
+    p_import_novel.add_argument("--target-dir", dest="import_target_dir")
+    p_import_novel.add_argument("--target", dest="import_target")
+    p_import_novel.add_argument("--title", dest="import_title")
+    p_import_novel.add_argument("--genre", dest="import_genre")
+    p_import_novel.add_argument("--workspace-root", dest="import_workspace_root")
+    p_import_novel.add_argument("--protagonist-name", dest="import_protagonist_name")
+    p_import_novel.add_argument("--target-words", dest="import_target_words")
+    p_import_novel.add_argument("--target-chapters", dest="import_target_chapters")
+    p_import_novel.add_argument("--overwrite", action="store_true", dest="import_overwrite")
+    p_import_novel.add_argument("--format", choices=["text", "json"], dest="import_format")
 
     p_extract_context = sub.add_parser("extract-context", help="转发到 extract_chapter_context.py")
     p_extract_context.add_argument("--chapter", type=int, required=True, help="目标章节号")
@@ -275,9 +293,36 @@ def main() -> None:
         rest = rest[1:]
     rest = _strip_project_root_args(rest)
 
-    # init 是创建项目，不应该依赖/注入已存在 project_root
+    # init/import-novel 是创建/导入项目，不应该依赖/注入已存在 project_root
     if tool == "init":
         raise SystemExit(_run_script("init_project.py", rest))
+    if tool == "import-novel":
+        forward_import_args = [*rest]
+        if args.import_source_dir:
+            forward_import_args.extend(["--source-dir", args.import_source_dir])
+        if args.import_source:
+            forward_import_args.extend(["--source", args.import_source])
+        if args.import_target_dir:
+            forward_import_args.extend(["--target-dir", args.import_target_dir])
+        if args.import_target:
+            forward_import_args.extend(["--target", args.import_target])
+        if args.import_title:
+            forward_import_args.extend(["--title", args.import_title])
+        if args.import_genre:
+            forward_import_args.extend(["--genre", args.import_genre])
+        if args.import_workspace_root:
+            forward_import_args.extend(["--workspace-root", args.import_workspace_root])
+        if args.import_protagonist_name:
+            forward_import_args.extend(["--protagonist-name", args.import_protagonist_name])
+        if args.import_target_words:
+            forward_import_args.extend(["--target-words", str(args.import_target_words)])
+        if args.import_target_chapters:
+            forward_import_args.extend(["--target-chapters", str(args.import_target_chapters)])
+        if args.import_overwrite:
+            forward_import_args.append("--overwrite")
+        if args.import_format:
+            forward_import_args.extend(["--format", args.import_format])
+        raise SystemExit(_run_data_module("novel_import_manager", forward_import_args))
 
     # 其余工具：统一解析 project_root 后前置给下游
     project_root = _resolve_root(args.project_root)
@@ -327,6 +372,8 @@ def main() -> None:
             return_args.extend(["--format", str(args.format)])
         return_args.extend(rest)
         raise SystemExit(_run_script("check_chapter_wordcount.py", return_args))
+    if tool == "refstyle":
+        raise SystemExit(_run_data_module("reference_style_manager", [*forward_args, *rest]))
 
     raise SystemExit(2)
 

@@ -85,8 +85,112 @@ class ErrorSchema(BaseModel):
     details: Optional[Dict[str, Any]] = None
 
 
+class StyleEvidence(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    label: str
+    detail: str
+    excerpt: Optional[str] = None
+
+
+class ReferenceBookMetrics(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    sentence_avg_len: float = Field(ge=0)
+    dialogue_ratio: float = Field(ge=0, le=1)
+    chapter_count_estimate: int = Field(ge=0)
+
+
+class ReferenceBookStyle(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    pov: str
+    primary_tense: str
+    dialogue_tags: List[str] = Field(default_factory=list)
+    lexical_markers: List[str] = Field(default_factory=list)
+
+
+class ReferenceBookStructure(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    opening_patterns: List[str] = Field(default_factory=list)
+    ending_hook_patterns: List[str] = Field(default_factory=list)
+    act_beats: List[str] = Field(default_factory=list)
+
+
+class ReferenceBookAnalysis(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    schema_version: str
+    book_id: str
+    title: str
+    author: Optional[str] = None
+    source_path: str
+    source_sha256: str
+    analyzed_at: str
+    metrics: ReferenceBookMetrics
+    style: ReferenceBookStyle
+    structure: ReferenceBookStructure
+    evidence: List[StyleEvidence] = Field(default_factory=list)
+
+
+class StableRule(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    rule: str
+    evidence_books: List[str] = Field(default_factory=list)
+
+
+class RangedRule(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    field: str
+    min_value: float
+    max_value: float
+    unit: Optional[str] = None
+
+
+class BookSpecificTrait(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    book_id: str
+    trait: str
+    reason: Optional[str] = None
+
+
+class ConflictResolution(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    topic: str
+    decision: str
+    rationale: str
+
+
+class MergedStyleProfile(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    schema_version: str
+    profile_id: str
+    strategy: str
+    sources: List[str] = Field(default_factory=list)
+    generated_at: str
+    stable_rules: List[StableRule] = Field(default_factory=list)
+    ranged_rules: List[RangedRule] = Field(default_factory=list)
+    book_specific_traits: List[BookSpecificTrait] = Field(default_factory=list)
+    conflict_resolutions: List[ConflictResolution] = Field(default_factory=list)
+    writing_guidelines: List[str] = Field(default_factory=list)
+
+
 def validate_data_agent_output(payload: Dict[str, Any]) -> DataAgentOutput:
     return DataAgentOutput.model_validate(payload)
+
+
+def validate_reference_book_analysis(payload: Dict[str, Any]) -> ReferenceBookAnalysis:
+    return ReferenceBookAnalysis.model_validate(payload)
+
+
+def validate_merged_style_profile(payload: Dict[str, Any]) -> MergedStyleProfile:
+    return MergedStyleProfile.model_validate(payload)
 
 
 def format_validation_error(exc: ValidationError) -> Dict[str, Any]:

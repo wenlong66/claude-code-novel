@@ -10,6 +10,23 @@
 - `设定集/`
 - `大纲/总纲.md`
 
+## `/webnovel-import --source-dir <目录> --target-dir <目录> --title <书名> --genre <题材>`
+
+用途：把已有章节目录（`.md/.txt/.docx`）导入为标准项目结构，并进入可续写状态。
+
+示例：
+
+```bash
+/webnovel-import --source-dir "D:/novel/chapters" --target-dir "D:/novel/凡人资本论" --title "凡人资本论" --genre "都市脑洞"
+```
+
+说明：
+
+- 默认导入策略：新建并填充
+- 支持 `.docx` 自动转换后导入；若存在 `.doc` 会提示先另存为 `.docx`
+- 章节识别优先：文件名 `第X章` > 首行 `第X章` > 文件顺序补号
+- 导入完成后建议执行 `/webnovel-plan` 与 `/webnovel-write`
+
 ## `/webnovel-plan [卷号]`
 
 用途：生成卷级规划与章节大纲。
@@ -88,7 +105,7 @@
 
 ## `/novel-wordcount [章号|--all] [--min-words N] [--format text|json] [--pattern GLOB]`
 
-用途：通过 command 主动执行统一 `wordcount` 命令，检查单章或全部章节的中文字数是否达到最低要求。
+用途：通过 `novel-wordcount` Skill 显式执行统一 `wordcount` 检查，判断单章或全部章节的中文字数是否达到最低要求。
 
 示例：
 
@@ -102,10 +119,35 @@
 说明：
 
 - 默认只读，不会修改项目文件
-- 这是显式 command，不会像 skill 一样被动加载
+- 这是显式 Skill（`disable-model-invocation: true`），不会被动加载
 - 底层调用统一 CLI `wordcount`
 - 支持 `--chapter` 单章检查与 `--all` 全量检查
 - 当存在字数不足或文件错误时返回非 0 退出码，便于自动化调用
+
+## `/novel-reference-style [analyze|merge|list|show ...]`
+
+用途：通过 `novel-reference-style` Skill 显式执行统一 `refstyle` 命令，完成参考书分析与风格合并。
+
+示例：
+
+```bash
+/novel-reference-style analyze --book "D:/samples/book1.txt" --book-id book1
+/novel-reference-style analyze --book "D:/samples/book2.md" --book-id book2
+/novel-reference-style merge --book-ids book1,book2 --strategy balanced
+/novel-reference-style list
+/novel-reference-style show --book-id book1 --format json
+```
+
+说明：
+
+- `analyze/merge` 会写入 `.webnovel/reference_style/` 目录
+- `list/show` 为只读查询
+- 这是显式 Skill（`disable-model-invocation: true`），不会被动加载
+- 输入若不是 `.md`，先转换成 `.md`
+- 底层调用统一 CLI `refstyle`
+- 合并结果会产出：
+  - `.webnovel/reference_style/merged/merged_style_profile.json`
+  - `.webnovel/reference_style/merged/merge_report.md`
 
 ## `wordcount`
 

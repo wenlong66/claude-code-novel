@@ -46,6 +46,56 @@ def test_init_does_not_resolve_existing_project_root(monkeypatch):
     assert called["argv"] == ["proj-dir", "测试书", "修仙"]
 
 
+def test_import_novel_does_not_resolve_existing_project_root(monkeypatch):
+    module = _load_webnovel_module()
+
+    called = {}
+
+    def _fake_run_data_module(module_name, argv):
+        called["module_name"] = module_name
+        called["argv"] = list(argv)
+        return 0
+
+    def _fail_resolve(_explicit_project_root=None):
+        raise AssertionError("import-novel 子命令不应触发 project_root 解析")
+
+    monkeypatch.setenv("WEBNOVEL_PROJECT_ROOT", r"D:\\invalid\\root")
+    monkeypatch.setattr(module, "_run_data_module", _fake_run_data_module)
+    monkeypatch.setattr(module, "_resolve_root", _fail_resolve)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "webnovel",
+            "import-novel",
+            "--source-dir",
+            "src",
+            "--target-dir",
+            "dst",
+            "--title",
+            "测试书",
+            "--genre",
+            "修仙",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        module.main()
+
+    assert int(exc.value.code or 0) == 0
+    assert called["module_name"] == "novel_import_manager"
+    assert called["argv"] == [
+        "--source-dir",
+        "src",
+        "--target-dir",
+        "dst",
+        "--title",
+        "测试书",
+        "--genre",
+        "修仙",
+    ]
+
+
 def test_extract_context_forwards_with_resolved_project_root(monkeypatch, tmp_path):
     module = _load_webnovel_module()
 
@@ -168,6 +218,52 @@ def test_wordcount_requires_exactly_one_target(monkeypatch, tmp_path):
         module.main()
 
     assert int(exc.value.code or 0) == 2
+
+
+def test_refstyle_forwards_with_resolved_project_root(monkeypatch, tmp_path):
+    module = _load_webnovel_module()
+
+    book_root = (tmp_path / "book").resolve()
+    called = {}
+
+    def _fake_resolve(explicit_project_root=None):
+        return book_root
+
+    def _fake_run_data_module(module_name, argv):
+        called["module_name"] = module_name
+        called["argv"] = list(argv)
+        return 0
+
+    monkeypatch.setattr(module, "_resolve_root", _fake_resolve)
+    monkeypatch.setattr(module, "_run_data_module", _fake_run_data_module)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "webnovel",
+            "--project-root",
+            str(tmp_path),
+            "refstyle",
+            "merge",
+            "--book-ids",
+            "a,b",
+            "--project-root",
+            "ignored",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        module.main()
+
+    assert int(exc.value.code or 0) == 0
+    assert called["module_name"] == "reference_style_manager"
+    assert called["argv"] == [
+        "--project-root",
+        str(book_root),
+        "merge",
+        "--book-ids",
+        "a,b",
+    ]
 
 
 def test_preflight_fails_when_required_scripts_are_missing(monkeypatch, tmp_path, capsys):
