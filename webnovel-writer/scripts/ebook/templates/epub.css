@@ -1,0 +1,51 @@
+/* CSS minimal pour EPUB - Compatible Kindle */
+
+body {
+    font-family: Georgia, serif;
+    line-height: 1.6;
+    text-align: justify;
+}
+
+h1 {
+    font-size: 1.5em;
+    text-align: center;
+    margin-top: 2em;
+    margin-bottom: 1.5em;
+    page-break-before: always;
+}
+
+h1:first-of-type {
+    page-break-before: auto;
+}
+
+p {
+    margin: 0;
+    text-indent: 1.5em;
+}
+
+h1 + p, h2 + p, hr + p {
+    text-indent: 0;
+}
+
+hr {
+    border: none;
+    text-align: center;
+    margin: 1.5em 0;
+}
+
+hr::before {
+    content: "* * *";
+    letter-spacing: 0.5em;
+}
+
+em { font-style: italic; }
+strong { font-weight: bold; }
+
+blockquote {
+    margin: 1em 2em;
+    font-style: italic;
+}
+
+blockquote p {
+    text-indent: 0;
+}

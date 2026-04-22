@@ -244,6 +244,22 @@ def main() -> None:
     p_refstyle = sub.add_parser("refstyle", help="转发到 reference_style_manager")
     p_refstyle.add_argument("args", nargs=argparse.REMAINDER)
 
+    p_ebook = sub.add_parser("ebook", help="转发到 ebook_export_manager")
+    p_ebook.add_argument("--format", choices=["epub", "mobi", "azw3", "all"], dest="ebook_format")
+    p_ebook.add_argument("--output-dir", dest="ebook_output_dir")
+    p_ebook.add_argument("--filename", dest="ebook_filename")
+    p_ebook.add_argument("--title", dest="ebook_title")
+    p_ebook.add_argument("--author", dest="ebook_author")
+    p_ebook.add_argument("--language", dest="ebook_language")
+    p_ebook.add_argument("--chapter-pattern", dest="ebook_chapter_pattern")
+    p_ebook.add_argument("--cover-image", dest="ebook_cover_image")
+    p_ebook.add_argument("--css", dest="ebook_css")
+    p_ebook.add_argument("--keep-intermediate", action="store_true", dest="ebook_keep_intermediate")
+    p_ebook.add_argument("--check-only", action="store_true", dest="ebook_check_only")
+    p_ebook.add_argument("--output-format", choices=["text", "json"], dest="ebook_output_format")
+    p_ebook.add_argument("--toc-depth", type=int, dest="ebook_toc_depth")
+    p_ebook.add_argument("args", nargs=argparse.REMAINDER)
+
     p_update_state = sub.add_parser("update-state", help="转发到 update_state.py")
     p_update_state.add_argument("args", nargs=argparse.REMAINDER)
 
@@ -374,6 +390,36 @@ def main() -> None:
         raise SystemExit(_run_script("check_chapter_wordcount.py", return_args))
     if tool == "refstyle":
         raise SystemExit(_run_data_module("reference_style_manager", [*forward_args, *rest]))
+    if tool == "ebook":
+        return_args = [*forward_args]
+        if args.ebook_format is not None:
+            return_args.extend(["--format", str(args.ebook_format)])
+        if args.ebook_output_dir is not None:
+            return_args.extend(["--output-dir", str(args.ebook_output_dir)])
+        if args.ebook_filename is not None:
+            return_args.extend(["--filename", str(args.ebook_filename)])
+        if args.ebook_title is not None:
+            return_args.extend(["--title", str(args.ebook_title)])
+        if args.ebook_author is not None:
+            return_args.extend(["--author", str(args.ebook_author)])
+        if args.ebook_language is not None:
+            return_args.extend(["--language", str(args.ebook_language)])
+        if args.ebook_chapter_pattern is not None:
+            return_args.extend(["--chapter-pattern", str(args.ebook_chapter_pattern)])
+        if args.ebook_cover_image is not None:
+            return_args.extend(["--cover-image", str(args.ebook_cover_image)])
+        if args.ebook_css is not None:
+            return_args.extend(["--css", str(args.ebook_css)])
+        if bool(args.ebook_keep_intermediate):
+            return_args.append("--keep-intermediate")
+        if bool(args.ebook_check_only):
+            return_args.append("--check-only")
+        if args.ebook_output_format is not None:
+            return_args.extend(["--output-format", str(args.ebook_output_format)])
+        if args.ebook_toc_depth is not None:
+            return_args.extend(["--toc-depth", str(args.ebook_toc_depth)])
+        return_args.extend(rest)
+        raise SystemExit(_run_data_module("ebook_export_manager", return_args))
 
     raise SystemExit(2)
 

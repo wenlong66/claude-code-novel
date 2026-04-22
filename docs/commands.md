@@ -167,6 +167,25 @@ python -X utf8 "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" wor
 - 支持 `--chapter` 单章检查与 `--all` 全量检查
 - 当存在字数不足或文件错误时返回非 0 退出码，便于自动化调用
 
+## `ebook`
+
+用途：统一 CLI 子命令，导出小说为 `epub/azw3/mobi`。
+
+示例：
+
+```bash
+python -X utf8 "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" ebook --format epub
+python -X utf8 "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" ebook --format all --output-format json
+python -X utf8 "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" ebook --format all --check-only --output-format json
+```
+
+说明：
+
+- 默认读取 `正文/` 下匹配 `第*.md` 的章节并按章节号排序
+- 默认输出目录：`${PROJECT_ROOT}/.webnovel/ebook/build`
+- `--format all` 需要系统可用 `pandoc` 与 `ebook-convert`（Calibre）
+- 可通过 `--cover-image` / `--css` 覆盖封面与样式
+
 ## `/webnovel-learn [内容]`
 
 用途：从当前会话或用户输入中提取可复用写作模式，并写入项目记忆。

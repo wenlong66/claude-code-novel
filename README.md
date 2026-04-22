@@ -108,7 +108,7 @@ model: sonnet
 
 ```bash
 /novel-wordcount 1   # 字数检查 Skill（显式执行）
-/novel-reference-style list   # 参考书分析/合并结果查看
+/novel-ebook-export  # 电子书导出 Skill（epub/azw3/mobi）
 ```
 
 ## 可添加计划（待实现）
@@ -122,9 +122,9 @@ model: sonnet
 - **创意生成链路（seed → synopsis → plan）**
   - 新增创意阶段：先生成可选故事种子，再展开为故事简介与章节计划
   - 在规划前引入原创性校验，降低与既有剧情结构重合风险
-- **电子书导出（EPUB）**
-  - 提供从章节 Markdown 到 EPUB 的一键导出能力
-  - 预留后续扩展 MOBI/AZW3 的发布链路
+- **电子书导出后续增强**
+  - 增加封面模板、批量元数据管理与发布平台打包预设
+  - 增加导出配置文件模板（按题材/平台预设参数）
 
 ## 更新简介
 

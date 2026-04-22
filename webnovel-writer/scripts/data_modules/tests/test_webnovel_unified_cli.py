@@ -266,6 +266,54 @@ def test_refstyle_forwards_with_resolved_project_root(monkeypatch, tmp_path):
     ]
 
 
+def test_ebook_forwards_with_resolved_project_root(monkeypatch, tmp_path):
+    module = _load_webnovel_module()
+
+    book_root = (tmp_path / "book").resolve()
+    called = {}
+
+    def _fake_resolve(explicit_project_root=None):
+        return book_root
+
+    def _fake_run_data_module(module_name, argv):
+        called["module_name"] = module_name
+        called["argv"] = list(argv)
+        return 0
+
+    monkeypatch.setattr(module, "_resolve_root", _fake_resolve)
+    monkeypatch.setattr(module, "_run_data_module", _fake_run_data_module)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "webnovel",
+            "--project-root",
+            str(tmp_path),
+            "ebook",
+            "--format",
+            "epub",
+            "--output-format",
+            "json",
+            "--project-root",
+            "ignored",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        module.main()
+
+    assert int(exc.value.code or 0) == 0
+    assert called["module_name"] == "ebook_export_manager"
+    assert called["argv"] == [
+        "--project-root",
+        str(book_root),
+        "--format",
+        "epub",
+        "--output-format",
+        "json",
+    ]
+
+
 def test_preflight_fails_when_required_scripts_are_missing(monkeypatch, tmp_path, capsys):
     module = _load_webnovel_module()
 
