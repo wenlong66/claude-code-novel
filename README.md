@@ -156,3 +156,22 @@ git checkout -b feature/your-feature
 git commit -m "feat: add your feature"
 git push origin feature/your-feature
 ```
+
+## 新增
+
+```bash
+/novel-wordcount 1   # 字数检查 Skill（显式执行）
+/novel-ebook-export  # 电子书导出 Skill（epub/azw3/mobi）
+```
+
+## 可添加计划（待实现）
+
+- **参考书分析与风格合并（book-analyzer + bible-merger）**
+  - 支持从样书提取风格、结构、角色与世界观特征，形成结构化写作手册
+  - 支持多本样书合并，沉淀更稳定的风格约束与写作基线
+- **创意生成链路（seed → synopsis → plan）**
+  - 新增创意阶段：先生成可选故事种子，再展开为故事简介与章节计划
+  - 在规划前引入原创性校验，降低与既有剧情结构重合风险
+- **电子书导出后续增强**
+  - 增加封面模板、批量元数据管理与发布平台打包预设
+  - 增加导出配置文件模板（按题材/平台预设参数）
