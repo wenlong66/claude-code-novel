@@ -172,7 +172,7 @@ def test_process_chapter_result_and_sqlite_sync(temp_project):
 
     result = {
         "entities_appeared": [
-            {"id": "xiaoyan", "type": "角色", "mentions": ["萧炎"], "confidence": 0.9}
+            {"id": "xiaoyan", "type": "角色", "mentions": ["萧炎", "小炎子"], "confidence": 0.9}
         ],
         "entities_new": [
             {
@@ -201,6 +201,12 @@ def test_process_chapter_result_and_sqlite_sync(temp_project):
             },
         ],
         "chapter_meta": {"hook": "test", "end": "ok"},
+        "memory_facts": {
+            "timeline_events": [{"event": "萧炎离开天云宗", "chapter": 12, "time_hint": "夜晚"}],
+            "world_rules": [{"rule": "修炼体系九境", "scope": "global", "domain": "修炼体系", "field": "境界划分"}],
+            "open_loops": [{"content": "三年之约", "status": "active", "urgency": 80}],
+            "reader_promises": [{"content": "纳兰嫣然会出场", "type": "encounter"}],
+        },
     }
     warnings = manager.process_chapter_result(12, result)
     assert any("需人工确认" in w for w in warnings)
@@ -210,6 +216,9 @@ def test_process_chapter_result_and_sqlite_sync(temp_project):
 
     idx = IndexManager(temp_project)
     assert idx.get_entity("yaolao") is not None
+    assert idx.get_entity("药老")["id"] == "yaolao"
+    assert idx.get_entity("小炎子")["id"] == "xiaoyan"
+    assert "药老先生" in idx.get_entity_aliases("yaolao")
     assert idx.get_relationship_between("xiaoyan", "yaolao")
     assert idx.get_entity_state_changes("xiaoyan")
 
@@ -217,6 +226,7 @@ def test_process_chapter_result_and_sqlite_sync(temp_project):
     by_tier = manager.get_entities_by_tier("核心")
     assert "xiaoyan" in by_type
     assert "xiaoyan" in by_tier
+    assert temp_project.scratchpad_file.exists()
 
 
 def test_export_context_and_protagonist_alias(temp_project):
@@ -491,6 +501,10 @@ def test_sync_protagonist_from_string_and_empty_updates(temp_project):
 
 
 def test_state_manager_cli_commands(temp_project, monkeypatch, capsys):
+    # CLI 的 resolve_project_root 需要 state.json 存在
+    if not temp_project.state_file.exists():
+        temp_project.state_file.write_text("{}", encoding="utf-8")
+
     idx = IndexManager(temp_project)
     idx.upsert_entity(
         EntityMeta(
@@ -544,6 +558,26 @@ def test_state_manager_cli_commands(temp_project, monkeypatch, capsys):
         payload,
     ])
     assert out["status"] == "success"
+
+
+def test_state_manager_cli_rejects_invalid_project_root(monkeypatch, tmp_path, capsys):
+    invalid_root = tmp_path / "not-a-project"
+    invalid_root.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["state_manager", "--project-root", str(invalid_root), "get-progress"],
+    )
+
+    from data_modules import state_manager as sm
+
+    with pytest.raises(SystemExit) as exc:
+        sm.main()
+    out = json.loads(capsys.readouterr().out)
+    assert int(exc.value.code or 0) == 1
+    assert out["status"] == "error"
+    assert out["error"]["code"] == "INVALID_PROJECT_ROOT"
 
 
 def test_save_state_timeout(monkeypatch, temp_project):

@@ -1,51 +1,66 @@
-# claude-code-novel
+# Webnovel Writer
 
-## 项目简单介绍
+[![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-purple.svg)](https://claude.ai/claude-code)
 
-`claude-code-novel` 在 webnovel-writer的基础上做了一些扩展
+<a href="https://trendshift.io/repositories/22487" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22487" alt="lingfengQAQ%2Fwebnovel-writer | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+## 这是什么？
 
-详细文档已拆分到 `docs/`：
+`Webnovel Writer` 是一个基于 Claude Code 的长篇网文创作系统。
 
-- 架构与模块：`docs/architecture.md`
-- 命令详解：`docs/commands.md`
-- RAG 与配置：`docs/rag-and-config.md`
-- 题材模板：`docs/genres.md`
-- 运维与恢复：`docs/operations.md`
-- 文档导航：`docs/README.md`
+它的目标很简单：**让 AI 在写长篇小说时不乱编、不忘事**。
+
+系统会自动管理角色设定、剧情伏笔、世界观规则，让你可以安心连载几百章而不用担心前后矛盾。
+
+📖 详细文档在 `docs/` 目录：
+
+- [架构与模块](docs/architecture/overview.md) — 系统怎么工作的
+- [命令详解](docs/guides/commands.md) — 所有可用命令
+- [RAG 与配置](docs/guides/rag-and-config.md) — 检索和环境变量配置
+- [题材模板](docs/guides/genres.md) — 37 个内置网文题材
+- [运维与恢复](docs/operations/operations.md) — 项目结构与日常运维
+- [插件发版](docs/operations/plugin-release.md) — 发版流程
+- [文档导航](docs/README.md) — 所有文档索引
 
 ## 快速开始
 
 ### 1) 安装插件
-改成了本地插件,直接导入项目目录即可
-> 仅当前项目生效时，将 `--scope user` 改为 `--scope project`。
+
+通过 Claude Code 官方 Marketplace 安装：
+
+```bash
+claude plugin marketplace add lingfengQAQ/webnovel-writer --scope user
+claude plugin install webnovel-writer@webnovel-writer-marketplace --scope user
+```
+
+> 如果只想在当前项目生效，把 `--scope user` 改成 `--scope project`。
 
 ### 2) 安装 Python 依赖
 
 ```bash
-python -m pip install -r requirements.txt
+python -m pip install -r https://raw.githubusercontent.com/lingfengQAQ/webnovel-writer/HEAD/requirements.txt
 ```
-
-说明：该入口会同时安装核心写作链路与 Dashboard 依赖。
 
 ### 3) 初始化小说项目
 
-在 Claude Code 中执行：
+在 Claude Code 中输入：
 
 ```bash
 /webnovel-init
 ```
 
-说明：`/webnovel-init` 会在当前 Workspace 下按书名创建 `PROJECT_ROOT`（子目录），并在 `workspace/.claude/.webnovel-current-project` 写入当前项目指针。
+系统会引导你填写书名、题材、主角等信息，然后在当前工作区下创建项目目录。
 
-### 4) 配置 RAG 环境（必做）
+### 4) 配置 RAG（必做）
 
-进入初始化后的书项目根目录，创建 `.env`：
+进入书项目根目录，把配置模板复制为 `.env` 并填写 API Key：
 
 ```bash
 cp .env.example .env
 ```
 
-最小配置示例：
+最小配置：
 
 ```bash
 EMBED_BASE_URL=https://api-inference.modelscope.cn/v1
@@ -57,106 +72,71 @@ RERANK_MODEL=jina-reranker-v3
 RERANK_API_KEY=your_rerank_api_key
 ```
 
-### 5) 开始使用
+### 5) 开始写作
 
 ```bash
-/webnovel-plan 1
-/webnovel-write 1
-/webnovel-review 1-5
+/webnovel-plan 1      # 规划第 1 卷大纲
+/webnovel-write 1     # 写第 1 章
+/webnovel-review 1-5  # 审查第 1-5 章
 ```
 
-如需排查本地 CLI / 插件目录 / 项目根解析问题，可直接运行统一预检：
-
-```bash
-python -X utf8 "<CLAUDE_PLUGIN_ROOT>/scripts/webnovel.py" --project-root "<WORKSPACE_ROOT>" preflight
-```
-
-### 6) 启动可视化面板（可选）
+### 6) 可视化面板（可选）
 
 ```bash
 /webnovel-dashboard
 ```
 
-说明：
-- Dashboard 为只读面板（项目状态、实体图谱、章节/大纲浏览、追读力查看）。
-- 前端构建产物已随插件发布，使用者无需本地 `npm build`。
+只读面板，可以浏览项目状态、实体图谱、章节内容和追读力数据。前端已随插件预构建，不需要本地 `npm build`。
+
+## Story System 主链（Phase 5）
+
+当前默认链路已经切到：
+
+1. 写前读取 `.story-system/MASTER_SETTING.json`、`volumes/`、`chapters/`、`reviews/`
+2. 写后提交 accepted `CHAPTER_COMMIT`
+3. 由 commit projection writers 更新 `.webnovel/state.json`、`index.db`、`summaries/`、`memory_scratchpad.json`
+
+这意味着：
+
+- `.story-system/` 是主链真源
+- `.webnovel/*` 是投影 / read-model
+- `references/genre-profiles.md` 只在合同缺失时作为 fallback
+- `preflight --format json` 和 dashboard 会直接暴露 `story_runtime` 健康状态
 
 ### 7) Agent 模型设置（可选）
 
-本项目所有内置 Agent 默认配置为：
+所有内置 Agent 默认继承当前会话模型：
 
 ```yaml
 model: inherit
 ```
 
-表示子 Agent 继承当前 Claude 会话所用模型。
-
-如果要单独给某个 Agent 指定模型，编辑对应文件（`webnovel-writer/agents/*.md`）的 frontmatter，例如：
+如需单独指定，编辑对应 `agents/*.md` 的 frontmatter：
 
 ```yaml
 ---
-name: context-agent
-description: ...
-tools: Read, Grep, Bash
-model: sonnet
+model: sonnet  # 可选：inherit / sonnet / opus / haiku
 ---
 ```
 
-常见可选值：`inherit` / `sonnet` / `opus` / `haiku`（以 Claude Code 当前支持为准）。
-
-### 8) 新增
-
-```bash
-/novel-wordcount 1   # 字数检查 Skill（显式执行）
-/novel-ebook-export  # 电子书导出 Skill（epub/azw3/mobi）
-```
-
-## 可添加计划（待实现）
-
-- **参考书分析与风格合并（book-analyzer + bible-merger）**
-  - 支持从样书提取风格、结构、角色与世界观特征，形成结构化写作手册
-  - 支持多本样书合并，沉淀更稳定的风格约束与写作基线
-- **创意生成链路（seed → synopsis → plan）**
-  - 新增创意阶段：先生成可选故事种子，再展开为故事简介与章节计划
-  - 在规划前引入原创性校验，降低与既有剧情结构重合风险
-- **电子书导出后续增强**
-  - 增加封面模板、批量元数据管理与发布平台打包预设
-  - 增加导出配置文件模板（按题材/平台预设参数）
-
 ## 更新简介
 
-| 版本 | 说明 |
-|------|------|
-| **v5.5.4 (当前)** | 补齐写作链提示词强约束（流程硬约束、中文思维写作约束、Step 职责边界）；统一中文化审查/润色/Agent 报告文案；清理文档内部版本号与版本历史，降低与插件发版版本混淆。 |
-| **v5.5.3** | 新增统一 `preflight` 预检命令；写作链 CLI 示例统一为 UTF-8 运行方式，收口文档中的长 shell 预检片段并降低 Windows 终端乱码风险。 |
-| **v5.5.2** | 支持将详细大纲中的章节名同步到正文文件名；修复 workflow_manager 在无参 find_project_root monkeypatch 下的兼容性问题。 |
-| **v5.5.1** | 修复卷级单文件大纲在上下文快照中的章节提取问题；补齐命令文档中遗漏的 `/webnovel-dashboard` 与 `/webnovel-learn`。 |
-| **v5.5.0** | 新增只读可视化 Dashboard Skill（`/webnovel-dashboard`）与实时刷新能力；支持插件目录启动与预构建前端分发 |
-| **v5.4.4** | 引入官方 Plugin Marketplace 安装机制；统一修复 Skills/Agents/References 的 CLI 调用（`CLAUDE_PLUGIN_ROOT` 单路径，透传命令统一 `--`） |
-| **v5.4.3** | 增强智能 RAG 上下文辅助（`auto/graph_hybrid` 回退 BM25） |
+| 版本 | 主要变化 |
+|------|----------|
+| **v6.0.0 (当前)** | Story System 全链路上线（合同种子 + 运行时合同 + 章节提交 + 事件审计），补齐集成测试 |
+| **v5.5.5** | 长期记忆闭环：写前注入 + 写后沉淀，新增 `memory` 运维命令 |
+| **v5.5.4** | 写作链提示词强约束，统一中文化审查和报告文案 |
+| **v5.5.3** | 统一 `preflight` 预检命令，修复 Windows 终端编码问题 |
+| **v5.5.2** | 大纲章节名同步到正文文件名 |
+| **v5.5.1** | 修复卷级大纲上下文提取，补齐 Dashboard 和 Learn 命令文档 |
+| **v5.5.0** | 新增只读可视化 Dashboard，支持实时刷新 |
+| **v5.4.4** | 接入 Plugin Marketplace 安装机制 |
+| **v5.4.3** | 增强 RAG 智能上下文（`auto/graph_hybrid` 回退 BM25） |
 | **v5.3** | 引入追读力系统（Hook / Cool-point / 微兑现 / 债务追踪） |
 
-## 插件发版
-
-推荐使用 GitHub Actions 的 `Plugin Release` 工作流统一发版：
-
-1. 先在本地同步版本信息：
-   ```bash
-   python -X utf8 webnovel-writer/scripts/sync_plugin_version.py --version 5.5.4 --release-notes "本次版本说明"
-   ```
-2. 提交并推送版本变更（`README.md`、`plugin.json`、`marketplace.json`）。
-3. 打开仓库的 Actions 页面，选择 `Plugin Release`。
-4. 输入与当前仓库元数据一致的 `version`（例如 `5.5.4`）和用于 GitHub Release 的 `release_notes`。
-5. 工作流会执行以下动作：
-   - 校验 `plugin.json`、`marketplace.json` 与 README 当前版本已经一致
-   - 校验当前版本与输入的 `version` 一致
-   - 创建并推送 `vX.Y.Z` Tag
-   - 创建同名 GitHub Release
-
-日常开发中，`Plugin Version Check` 会在 Push / PR 时自动校验版本信息是否一致。
-
 ## 开源协议
-本项目使用 `GPL v3` 协议，详见 `LICENSE`。
+
+本项目使用 `GPL v3` 协议，详见 [LICENSE](LICENSE)。
 
 ## Star 历史
 

@@ -1,4 +1,4 @@
-.claude/settings.local.json
+.claude/
 
 # Python caches & virtualenv
 __pycache__/
@@ -46,5 +46,6 @@ _v52_*.txt
 claude_inventory.csv
 *_utf8_sample.txt
 
-.other
-小说
+# Test / diagnostic files
+test_gemini.env
+test_gemini_diag.py

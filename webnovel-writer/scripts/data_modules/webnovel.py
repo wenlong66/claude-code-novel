@@ -33,6 +33,8 @@ from typing import Optional
 from runtime_compat import normalize_windows_path
 from project_locator import resolve_project_root, write_current_project_pointer, update_global_registry_current_project
 
+from .story_runtime_health import build_story_runtime_health
+
 
 def _scripts_dir() -> Path:
     # data_modules/webnovel.py -> data_modules -> scripts
@@ -91,7 +93,7 @@ def _run_script(script_name: str, argv: list[str]) -> int:
     """
     Run a script under `.claude/scripts/` via a subprocess.
 
-    用途：兼容没有 main() 的脚本（例如 workflow_manager.py）。
+    用途：兼容没有 main() 的脚本。
     """
     script_path = _scripts_dir() / script_name
     if not script_path.is_file():
@@ -122,10 +124,12 @@ def _build_preflight_report(explicit_project_root: Optional[str]) -> dict:
 
     project_root = ""
     project_root_error = ""
+    story_runtime: dict = {}
     try:
         resolved_root = _resolve_root(explicit_project_root)
         project_root = str(resolved_root)
         checks.append({"name": "project_root", "ok": True, "path": project_root})
+        story_runtime = build_story_runtime_health(resolved_root)
     except Exception as exc:
         project_root_error = str(exc)
         checks.append({"name": "project_root", "ok": False, "path": explicit_project_root or "", "error": project_root_error})
@@ -137,6 +141,7 @@ def _build_preflight_report(explicit_project_root: Optional[str]) -> dict:
         "skill_root": str(skill_root),
         "checks": checks,
         "project_root_error": project_root_error,
+        "story_runtime": story_runtime,
     }
 
 
@@ -151,6 +156,14 @@ def cmd_preflight(args: argparse.Namespace) -> int:
             print(f"{status} {item['name']}: {path}")
             if item.get("error"):
                 print(f"  detail: {item['error']}")
+        story_runtime = report.get("story_runtime") or {}
+        if story_runtime:
+            print(
+                "INFO story_runtime: "
+                f"chapter={story_runtime.get('chapter')} "
+                f"mainline_ready={story_runtime.get('mainline_ready')} "
+                f"latest_commit_status={story_runtime.get('latest_commit_status')}"
+            )
     return 0 if report["ok"] else 1
 
 
@@ -158,7 +171,9 @@ def cmd_use(args: argparse.Namespace) -> int:
     project_root = normalize_windows_path(args.project_root).expanduser()
     try:
         project_root = project_root.resolve()
-    except Exception:
+    except Exception as exc:
+        import sys
+        print(f"⚠️ path.resolve() 失败 ({project_root}): {exc}", file=sys.stderr)
         project_root = project_root
 
     workspace_root: Optional[Path] = None
@@ -166,7 +181,9 @@ def cmd_use(args: argparse.Namespace) -> int:
         workspace_root = normalize_windows_path(args.workspace_root).expanduser()
         try:
             workspace_root = workspace_root.resolve()
-        except Exception:
+        except Exception as exc:
+            import sys
+            print(f"⚠️ path.resolve() 失败 ({workspace_root}): {exc}", file=sys.stderr)
             workspace_root = workspace_root
 
     # 1) 写入工作区指针（若工作区内存在 `.claude/`）
@@ -223,42 +240,15 @@ def main() -> None:
     p_context = sub.add_parser("context", help="转发到 context_manager")
     p_context.add_argument("args", nargs=argparse.REMAINDER)
 
+    p_memory = sub.add_parser("memory", help="转发到 memory.store")
+    p_memory.add_argument("args", nargs=argparse.REMAINDER)
+
     p_migrate = sub.add_parser("migrate", help="转发到 migrate_state_to_sqlite")
     p_migrate.add_argument("args", nargs=argparse.REMAINDER)
 
     # Pass-through to scripts
-    p_workflow = sub.add_parser("workflow", help="转发到 workflow_manager.py")
-    p_workflow.add_argument("args", nargs=argparse.REMAINDER)
-
     p_status = sub.add_parser("status", help="转发到 status_reporter.py")
     p_status.add_argument("args", nargs=argparse.REMAINDER)
-
-    p_wordcount = sub.add_parser("wordcount", help="转发到 check_chapter_wordcount.py")
-    p_wordcount.add_argument("--chapter", type=int, help="按章节号检查单章")
-    p_wordcount.add_argument("--all", action="store_true", help="检查全部章节")
-    p_wordcount.add_argument("--min-words", type=int, help="最低字数要求")
-    p_wordcount.add_argument("--pattern", help="批量扫描时使用的文件模式")
-    p_wordcount.add_argument("--format", choices=["text", "json"], help="输出格式")
-    p_wordcount.add_argument("args", nargs=argparse.REMAINDER)
-
-    p_refstyle = sub.add_parser("refstyle", help="转发到 reference_style_manager")
-    p_refstyle.add_argument("args", nargs=argparse.REMAINDER)
-
-    p_ebook = sub.add_parser("ebook", help="转发到 ebook_export_manager")
-    p_ebook.add_argument("--format", choices=["epub", "mobi", "azw3", "all"], dest="ebook_format")
-    p_ebook.add_argument("--output-dir", dest="ebook_output_dir")
-    p_ebook.add_argument("--filename", dest="ebook_filename")
-    p_ebook.add_argument("--title", dest="ebook_title")
-    p_ebook.add_argument("--author", dest="ebook_author")
-    p_ebook.add_argument("--language", dest="ebook_language")
-    p_ebook.add_argument("--chapter-pattern", dest="ebook_chapter_pattern")
-    p_ebook.add_argument("--cover-image", dest="ebook_cover_image")
-    p_ebook.add_argument("--css", dest="ebook_css")
-    p_ebook.add_argument("--keep-intermediate", action="store_true", dest="ebook_keep_intermediate")
-    p_ebook.add_argument("--check-only", action="store_true", dest="ebook_check_only")
-    p_ebook.add_argument("--output-format", choices=["text", "json"], dest="ebook_output_format")
-    p_ebook.add_argument("--toc-depth", type=int, dest="ebook_toc_depth")
-    p_ebook.add_argument("args", nargs=argparse.REMAINDER)
 
     p_update_state = sub.add_parser("update-state", help="转发到 update_state.py")
     p_update_state.add_argument("args", nargs=argparse.REMAINDER)
@@ -272,24 +262,48 @@ def main() -> None:
     p_init = sub.add_parser("init", help="转发到 init_project.py（初始化项目）")
     p_init.add_argument("args", nargs=argparse.REMAINDER)
 
-    p_import_novel = sub.add_parser("import-novel", help="转发到 novel_import_manager（导入已有小说）")
-    p_import_novel.add_argument("args", nargs=argparse.REMAINDER)
-    p_import_novel.add_argument("--source-dir", dest="import_source_dir")
-    p_import_novel.add_argument("--source", dest="import_source")
-    p_import_novel.add_argument("--target-dir", dest="import_target_dir")
-    p_import_novel.add_argument("--target", dest="import_target")
-    p_import_novel.add_argument("--title", dest="import_title")
-    p_import_novel.add_argument("--genre", dest="import_genre")
-    p_import_novel.add_argument("--workspace-root", dest="import_workspace_root")
-    p_import_novel.add_argument("--protagonist-name", dest="import_protagonist_name")
-    p_import_novel.add_argument("--target-words", dest="import_target_words")
-    p_import_novel.add_argument("--target-chapters", dest="import_target_chapters")
-    p_import_novel.add_argument("--overwrite", action="store_true", dest="import_overwrite")
-    p_import_novel.add_argument("--format", choices=["text", "json"], dest="import_format")
-
     p_extract_context = sub.add_parser("extract-context", help="转发到 extract_chapter_context.py")
     p_extract_context.add_argument("--chapter", type=int, required=True, help="目标章节号")
     p_extract_context.add_argument("--format", choices=["text", "json"], default="text", help="输出格式")
+
+    p_story_system = sub.add_parser("story-system", help="转发到 story_system.py")
+    p_story_system.add_argument("args", nargs=argparse.REMAINDER)
+
+    p_story_events = sub.add_parser("story-events", help="转发到 story_events.py")
+    p_story_events.add_argument("--chapter", type=int, default=0, help="目标章节号")
+    p_story_events.add_argument("--limit", type=int, default=200, help="查询条数")
+    p_story_events.add_argument("--health", action="store_true", help="输出事件链健康信息")
+
+    p_commit = sub.add_parser("chapter-commit", help="转发到 chapter_commit.py")
+    p_commit.add_argument("--chapter", type=int, required=True, help="目标章节号")
+    p_commit.add_argument("--review-result", default="", help="review_result JSON 文件")
+    p_commit.add_argument("--fulfillment-result", default="", help="fulfillment_result JSON 文件")
+    p_commit.add_argument("--disambiguation-result", default="", help="disambiguation_result JSON 文件")
+    p_commit.add_argument("--extraction-result", default="", help="extraction_result JSON 文件")
+
+    p_memory_contract = sub.add_parser("memory-contract", help="转发到 memory_cli.py")
+    p_memory_contract.add_argument("args", nargs=argparse.REMAINDER)
+
+    p_project_memory = sub.add_parser("project-memory", help="转发到 project_memory.py")
+    p_project_memory.add_argument("args", nargs=argparse.REMAINDER)
+
+    p_review_pipeline = sub.add_parser("review-pipeline", help="转发到 review_pipeline.py")
+    p_review_pipeline.add_argument("--chapter", type=int, required=True, help="目标章节号")
+    p_review_pipeline.add_argument("--review-results", required=True, help="reviewer 原始结果 JSON 文件")
+    p_review_pipeline.add_argument("--metrics-out", default="", help="metrics 输出文件")
+    p_review_pipeline.add_argument("--report-file", default="", help="审查报告路径")
+    p_review_pipeline.add_argument("--save-metrics", action="store_true", help="直接写入 index.db")
+
+    knowledge_parser = sub.add_parser("knowledge", help="时序知识查询")
+    knowledge_sub = knowledge_parser.add_subparsers(dest="knowledge_action")
+
+    qs_parser = knowledge_sub.add_parser("query-entity-state", help="查询实体在指定章节的状态")
+    qs_parser.add_argument("--entity", required=True, help="实体 ID")
+    qs_parser.add_argument("--at-chapter", type=int, required=True, help="目标章节号")
+
+    qr_parser = knowledge_sub.add_parser("query-relationships", help="查询实体在指定章节的关系")
+    qr_parser.add_argument("--entity", required=True, help="实体 ID")
+    qr_parser.add_argument("--at-chapter", type=int, required=True, help="目标章节号")
 
     # 兼容：允许 `--project-root` 出现在任意位置（减少 agents/skills 拼命令的出错率）
     from .cli_args import normalize_global_project_root
@@ -309,36 +323,9 @@ def main() -> None:
         rest = rest[1:]
     rest = _strip_project_root_args(rest)
 
-    # init/import-novel 是创建/导入项目，不应该依赖/注入已存在 project_root
+    # init 是创建项目，不应该依赖/注入已存在 project_root
     if tool == "init":
         raise SystemExit(_run_script("init_project.py", rest))
-    if tool == "import-novel":
-        forward_import_args = [*rest]
-        if args.import_source_dir:
-            forward_import_args.extend(["--source-dir", args.import_source_dir])
-        if args.import_source:
-            forward_import_args.extend(["--source", args.import_source])
-        if args.import_target_dir:
-            forward_import_args.extend(["--target-dir", args.import_target_dir])
-        if args.import_target:
-            forward_import_args.extend(["--target", args.import_target])
-        if args.import_title:
-            forward_import_args.extend(["--title", args.import_title])
-        if args.import_genre:
-            forward_import_args.extend(["--genre", args.import_genre])
-        if args.import_workspace_root:
-            forward_import_args.extend(["--workspace-root", args.import_workspace_root])
-        if args.import_protagonist_name:
-            forward_import_args.extend(["--protagonist-name", args.import_protagonist_name])
-        if args.import_target_words:
-            forward_import_args.extend(["--target-words", str(args.import_target_words)])
-        if args.import_target_chapters:
-            forward_import_args.extend(["--target-chapters", str(args.import_target_chapters)])
-        if args.import_overwrite:
-            forward_import_args.append("--overwrite")
-        if args.import_format:
-            forward_import_args.extend(["--format", args.import_format])
-        raise SystemExit(_run_data_module("novel_import_manager", forward_import_args))
 
     # 其余工具：统一解析 project_root 后前置给下游
     project_root = _resolve_root(args.project_root)
@@ -356,11 +343,11 @@ def main() -> None:
         raise SystemExit(_run_data_module("entity_linker", [*forward_args, *rest]))
     if tool == "context":
         raise SystemExit(_run_data_module("context_manager", [*forward_args, *rest]))
+    if tool == "memory":
+        raise SystemExit(_run_data_module("memory.store", [*forward_args, *rest]))
     if tool == "migrate":
         raise SystemExit(_run_data_module("migrate_state_to_sqlite", [*forward_args, *rest]))
 
-    if tool == "workflow":
-        raise SystemExit(_run_script("workflow_manager.py", [*forward_args, *rest]))
     if tool == "status":
         raise SystemExit(_run_script("status_reporter.py", [*forward_args, *rest]))
     if tool == "update-state":
@@ -372,54 +359,56 @@ def main() -> None:
     if tool == "extract-context":
         return_args = [*forward_args, "--chapter", str(args.chapter), "--format", str(args.format)]
         raise SystemExit(_run_script("extract_chapter_context.py", return_args))
-    if tool == "wordcount":
-        if (args.chapter is None) == (not bool(args.all)):
-            parser.error("wordcount 需要且只能提供 --chapter 或 --all 其中之一")
-        return_args = [*forward_args]
-        if args.chapter is not None:
+    if tool == "story-system":
+        raise SystemExit(_run_script("story_system.py", [*forward_args, *rest]))
+    if tool == "story-events":
+        return_args = [*forward_args, "--limit", str(args.limit)]
+        if args.chapter:
             return_args.extend(["--chapter", str(args.chapter)])
-        if bool(args.all):
-            return_args.append("--all")
-        if args.min_words is not None:
-            return_args.extend(["--min-words", str(args.min_words)])
-        if args.pattern is not None:
-            return_args.extend(["--pattern", str(args.pattern)])
-        if args.format is not None:
-            return_args.extend(["--format", str(args.format)])
-        return_args.extend(rest)
-        raise SystemExit(_run_script("check_chapter_wordcount.py", return_args))
-    if tool == "refstyle":
-        raise SystemExit(_run_data_module("reference_style_manager", [*forward_args, *rest]))
-    if tool == "ebook":
-        return_args = [*forward_args]
-        if args.ebook_format is not None:
-            return_args.extend(["--format", str(args.ebook_format)])
-        if args.ebook_output_dir is not None:
-            return_args.extend(["--output-dir", str(args.ebook_output_dir)])
-        if args.ebook_filename is not None:
-            return_args.extend(["--filename", str(args.ebook_filename)])
-        if args.ebook_title is not None:
-            return_args.extend(["--title", str(args.ebook_title)])
-        if args.ebook_author is not None:
-            return_args.extend(["--author", str(args.ebook_author)])
-        if args.ebook_language is not None:
-            return_args.extend(["--language", str(args.ebook_language)])
-        if args.ebook_chapter_pattern is not None:
-            return_args.extend(["--chapter-pattern", str(args.ebook_chapter_pattern)])
-        if args.ebook_cover_image is not None:
-            return_args.extend(["--cover-image", str(args.ebook_cover_image)])
-        if args.ebook_css is not None:
-            return_args.extend(["--css", str(args.ebook_css)])
-        if bool(args.ebook_keep_intermediate):
-            return_args.append("--keep-intermediate")
-        if bool(args.ebook_check_only):
-            return_args.append("--check-only")
-        if args.ebook_output_format is not None:
-            return_args.extend(["--output-format", str(args.ebook_output_format)])
-        if args.ebook_toc_depth is not None:
-            return_args.extend(["--toc-depth", str(args.ebook_toc_depth)])
-        return_args.extend(rest)
-        raise SystemExit(_run_data_module("ebook_export_manager", return_args))
+        if args.health:
+            return_args.append("--health")
+        raise SystemExit(_run_script("story_events.py", return_args))
+    if tool == "chapter-commit":
+        return_args = [*forward_args, "--chapter", str(args.chapter)]
+        if args.review_result:
+            return_args.extend(["--review-result", str(args.review_result)])
+        if args.fulfillment_result:
+            return_args.extend(["--fulfillment-result", str(args.fulfillment_result)])
+        if args.disambiguation_result:
+            return_args.extend(["--disambiguation-result", str(args.disambiguation_result)])
+        if args.extraction_result:
+            return_args.extend(["--extraction-result", str(args.extraction_result)])
+        raise SystemExit(_run_script("chapter_commit.py", return_args))
+    if tool == "memory-contract":
+        raise SystemExit(_run_script("memory_cli.py", [*forward_args, *rest]))
+    if tool == "project-memory":
+        raise SystemExit(_run_script("project_memory.py", [*forward_args, *rest]))
+    if tool == "review-pipeline":
+        return_args = [
+            *forward_args,
+            "--chapter", str(args.chapter),
+            "--review-results", str(args.review_results),
+        ]
+        if args.metrics_out:
+            return_args.extend(["--metrics-out", str(args.metrics_out)])
+        if args.report_file:
+            return_args.extend(["--report-file", str(args.report_file)])
+        if args.save_metrics:
+            return_args.append("--save-metrics")
+        raise SystemExit(_run_script("review_pipeline.py", return_args))
+
+    if tool == "knowledge":
+        from .knowledge_query import KnowledgeQuery
+        from .cli_output import print_success
+        kq = KnowledgeQuery(project_root)
+        if args.knowledge_action == "query-entity-state":
+            result = kq.entity_state_at_chapter(args.entity, args.at_chapter)
+            print_success(result, message="entity_state_at_chapter")
+            raise SystemExit(0)
+        elif args.knowledge_action == "query-relationships":
+            result = kq.entity_relationships_at_chapter(args.entity, args.at_chapter)
+            print_success(result, message="entity_relationships_at_chapter")
+            raise SystemExit(0)
 
     raise SystemExit(2)
 

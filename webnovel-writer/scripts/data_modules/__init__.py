@@ -45,12 +45,18 @@ __all__ = [
     "SearchResult",
     "ContextManager",
     "ContextRanker",
-    "SnapshotManager",
     "QueryRouter",
     # Style Sampler
     "StyleSampler",
     "StyleSample",
     "SceneType",
+    # Memory
+    "ScratchpadManager",
+    "MemoryWriter",
+    "MemoryOrchestrator",
+    # Memory Contract
+    "MemoryContract",
+    "MemoryContractAdapter",
 ]
 
 
@@ -81,12 +87,18 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "SearchResult": (".rag_adapter", "SearchResult"),
     "ContextManager": (".context_manager", "ContextManager"),
     "ContextRanker": (".context_ranker", "ContextRanker"),
-    "SnapshotManager": (".snapshot_manager", "SnapshotManager"),
     "QueryRouter": (".query_router", "QueryRouter"),
     # Style Sampler
     "StyleSampler": (".style_sampler", "StyleSampler"),
     "StyleSample": (".style_sampler", "StyleSample"),
     "SceneType": (".style_sampler", "SceneType"),
+    # Memory
+    "ScratchpadManager": (".memory.store", "ScratchpadManager"),
+    "MemoryWriter": (".memory.writer", "MemoryWriter"),
+    "MemoryOrchestrator": (".memory.orchestrator", "MemoryOrchestrator"),
+    # Memory Contract
+    "MemoryContract": (".memory_contract", "MemoryContract"),
+    "MemoryContractAdapter": (".memory_contract_adapter", "MemoryContractAdapter"),
 }
 
 
@@ -103,4 +115,3 @@ def __getattr__(name: str) -> Any:  # pragma: no cover
 
 def __dir__() -> list[str]:  # pragma: no cover
     return sorted(set(list(globals().keys()) + list(_LAZY_EXPORTS.keys())))
-

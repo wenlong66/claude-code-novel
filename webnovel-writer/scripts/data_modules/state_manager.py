@@ -32,6 +32,7 @@ from .observability import safe_append_perf_timing, safe_log_tool_call
 
 logger = logging.getLogger(__name__)
 
+
 try:
     # 当 scripts 目录在 sys.path 中（常见：从 scripts/ 运行）
     from security_utils import atomic_write_json, read_json_safe
@@ -87,11 +88,29 @@ class _EntityPatch:
     appearance_chapter: Optional[int] = None
 
 
+def _unique_aliases(*groups: Any) -> List[str]:
+    result = []
+    seen = set()
+    for group in groups:
+        if not group:
+            continue
+        values = [group] if isinstance(group, str) else group
+        for value in values:
+            alias = str(value).strip() if value is not None else ""
+            if alias and alias not in seen:
+                seen.add(alias)
+                result.append(alias)
+    return result
+
+
 class StateManager:
     """状态管理器（v5.1 entities_v3 格式 + SQLite 同步，v5.4 沿用）"""
 
     # v5.0 引入的实体类型
     ENTITY_TYPES = ["角色", "地点", "物品", "势力", "招式"]
+
+    # 章节状态机（单调递进）
+    CHAPTER_STATUS_ORDER = ["chapter_drafted", "chapter_reviewed", "chapter_committed"]
 
     def __init__(self, config=None, enable_sqlite_sync: bool = True):
         """
@@ -436,7 +455,7 @@ class StateManager:
                         tier=patch.base_entity.get("tier", "装饰"),
                         desc=patch.base_entity.get("desc", ""),
                         current=patch.base_entity.get("current", {}),
-                        aliases=[],
+                        aliases=patch.base_entity.get("aliases", []),
                         first_appearance=patch.base_entity.get("first_appearance", 0),
                         last_appearance=patch.base_entity.get("last_appearance", 0),
                         is_protagonist=patch.base_entity.get("is_protagonist", False)
@@ -615,13 +634,46 @@ class StateManager:
         if words > 0:
             self._pending_progress_words_delta += int(words)
 
+    # ==================== 章节状态管理 ====================
+
+    def get_chapter_status(self, chapter: int) -> Optional[str]:
+        """查询章节状态。"""
+        statuses = self._state.get("progress", {}).get("chapter_status", {})
+        return statuses.get(str(chapter))
+
+    def set_chapter_status(self, chapter: int, status: str) -> None:
+        """设置章节状态（单调递进，不可回退）。"""
+        if status not in self.CHAPTER_STATUS_ORDER:
+            raise ValueError(f"无效状态: {status}，有效值: {self.CHAPTER_STATUS_ORDER}")
+
+        current = self.get_chapter_status(chapter)
+        if current is not None:
+            current_idx = self.CHAPTER_STATUS_ORDER.index(current)
+            new_idx = self.CHAPTER_STATUS_ORDER.index(status)
+            if new_idx < current_idx:
+                raise ValueError(
+                    f"章节 {chapter} 状态不可回退: {current} -> {status}"
+                )
+            if new_idx == current_idx:
+                return  # 幂等
+
+        progress = self._state.setdefault("progress", {})
+        chapter_status = progress.setdefault("chapter_status", {})
+        chapter_status[str(chapter)] = status
+        self._save_state()
+
+    def _save_state(self) -> None:
+        """直接持久化当前内存状态到 state.json（轻量写入，不走 pending 合并）。"""
+        self.config.ensure_dirs()
+        atomic_write_json(self.config.state_file, self._state, backup=False)
+
     # ==================== 实体管理 (v5.1 SQLite-first) ====================
 
     def get_entity(self, entity_id: str, entity_type: str = None) -> Optional[Dict]:
         """获取实体（v5.1 引入：优先从 SQLite 读取）"""
         # v5.1 引入: 优先从 SQLite 读取
         if self._sql_state_manager:
-            entity = self._sql_state_manager._index_manager.get_entity(entity_id)
+            entity = self._sql_state_manager.get_entity(entity_id)
             if entity:
                 return entity
 
@@ -726,6 +778,7 @@ class StateManager:
             "tier": entity.tier,
             "desc": "",
             "current": entity.attributes,
+            "aliases": list(entity.aliases),
             "first_appearance": entity.first_appearance,
             "last_appearance": entity.last_appearance,
             "history": []
@@ -1030,6 +1083,12 @@ class StateManager:
             entity_type = entity.get("type")
             if entity_id:
                 self.update_entity_appearance(entity_id, chapter, entity_type)
+                resolved_type = entity_type or self.get_entity_type(entity_id) or "角色"
+                for alias in _unique_aliases(entity.get("mentions", [])):
+                    entries = self._pending_alias_entries.setdefault(alias, [])
+                    alias_entry = {"type": resolved_type, "id": entity_id}
+                    if alias_entry not in entries:
+                        entries.append(alias_entry)
                 # v5.1 引入: 缓存用于 SQLite 同步
                 self._pending_sqlite_data["entities_appeared"].append(entity)
 
@@ -1042,7 +1101,9 @@ class StateManager:
                     name=entity.get("name", ""),
                     type=entity.get("type", "角色"),
                     tier=entity.get("tier", "装饰"),
-                    aliases=entity.get("mentions", []),
+                    aliases=_unique_aliases(
+                        entity.get("mentions", []), entity.get("aliases", [])
+                    ),
                     first_appearance=chapter,
                     last_appearance=chapter
                 )
@@ -1079,6 +1140,7 @@ class StateManager:
         # 处理消歧不确定项（不影响实体写入，但必须对 Writer 可见）
         warnings.extend(self._record_disambiguation(chapter, result.get("uncertain", [])))
 
+
         # 写入 chapter_meta（钩子/模式/结束状态）
         chapter_meta = result.get("chapter_meta")
         if isinstance(chapter_meta, dict):
@@ -1086,12 +1148,21 @@ class StateManager:
             self._state.setdefault("chapter_meta", {})
             self._state["chapter_meta"][meta_key] = chapter_meta
             self._pending_chapter_meta[meta_key] = chapter_meta
-
         # 更新进度
         self.update_progress(chapter)
 
         # 同步主角状态（entities_v3 → protagonist_state）
         self.sync_protagonist_from_entity()
+
+        # 长期记忆写入（best-effort，不阻断主流程）
+        try:
+            from .memory.writer import MemoryWriter
+
+            writer = MemoryWriter(self.config)
+            mem_result = writer.update_from_chapter_result(chapter, result)
+            logger.info("memory_write: %s", mem_result)
+        except Exception as exc:
+            logger.warning("memory_write_failed: %s", exc)
 
         return warnings
 
@@ -1249,6 +1320,16 @@ def main():
     process_parser.add_argument("--chapter", type=int, required=True, help="章节号")
     process_parser.add_argument("--data", required=True, help="JSON 格式的处理结果")
 
+    # 查询章节状态
+    status_get_parser = subparsers.add_parser("get-chapter-status")
+    status_get_parser.add_argument("--chapter", type=int, required=True)
+
+    # 设置章节状态
+    status_set_parser = subparsers.add_parser("set-chapter-status")
+    status_set_parser.add_argument("--chapter", type=int, required=True)
+    status_set_parser.add_argument("--status", required=True,
+        choices=["chapter_drafted", "chapter_reviewed", "chapter_committed"])
+
     argv = normalize_global_project_root(sys.argv[1:])
     args = parser.parse_args(argv)
     command_started_at = time.perf_counter()
@@ -1260,7 +1341,15 @@ def main():
         from project_locator import resolve_project_root
         from .config import DataModulesConfig
 
-        resolved_root = resolve_project_root(args.project_root)
+        try:
+            resolved_root = resolve_project_root(args.project_root)
+        except FileNotFoundError as exc:
+            print_error(
+                "INVALID_PROJECT_ROOT",
+                str(exc),
+                suggestion="请传入包含 .webnovel/state.json 的书项目根目录，或先通过 webnovel.py 解析 project_root。",
+            )
+            raise SystemExit(1) from exc
         config = DataModulesConfig.from_project_root(resolved_root)
 
     manager = StateManager(config)
@@ -1340,6 +1429,18 @@ def main():
         warnings = manager.process_chapter_result(args.chapter, validated.model_dump(by_alias=True))
         manager.save_state()
         emit_success({"chapter": args.chapter, "warnings": warnings}, message="chapter_processed", chapter=args.chapter)
+
+    elif args.command == "get-chapter-status":
+        manager._load_state()
+        status = manager.get_chapter_status(args.chapter)
+        emit_success({"chapter": args.chapter, "status": status},
+                     message="chapter_status")
+
+    elif args.command == "set-chapter-status":
+        manager._load_state()
+        manager.set_chapter_status(args.chapter, args.status)
+        emit_success({"chapter": args.chapter, "status": args.status},
+                     message="chapter_status_set")
 
     else:
         emit_error("UNKNOWN_COMMAND", "未指定有效命令", suggestion="请查看 --help")

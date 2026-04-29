@@ -103,6 +103,10 @@ class DataModulesConfig:
         return self.webnovel_dir / "state.json"
 
     @property
+    def scratchpad_file(self) -> Path:
+        return self.webnovel_dir / "memory_scratchpad.json"
+
+    @property
     def index_db(self) -> Path:
         return self.webnovel_dir / "index.db"
 
@@ -119,6 +123,22 @@ class DataModulesConfig:
     @property
     def outline_dir(self) -> Path:
         return self.project_root / "大纲"
+
+    @property
+    def story_system_dir(self) -> Path:
+        return self.project_root / ".story-system"
+
+    @property
+    def story_system_chapters_dir(self) -> Path:
+        return self.story_system_dir / "chapters"
+
+    @property
+    def story_system_master_json(self) -> Path:
+        return self.story_system_dir / "MASTER_SETTING.json"
+
+    @property
+    def story_system_anti_patterns_json(self) -> Path:
+        return self.story_system_dir / "anti_patterns.json"
 
 
     # ================= Embedding API 配置 =================
@@ -256,6 +276,12 @@ class DataModulesConfig:
         "，",
         "、",
     )
+    context_use_memory_orchestrator: bool = False
+    memory_orchestrator_max_items: int = 30
+    memory_orchestrator_recent_changes_limit: int = 10
+    memory_orchestrator_source_window: int = 20
+    memory_compactor_enabled: bool = True
+    memory_compactor_threshold: int = 500
 
     export_recent_changes_slice: int = 20
     export_disambiguation_slice: int = 20
